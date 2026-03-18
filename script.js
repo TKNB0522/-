@@ -23,7 +23,7 @@ let keys = { right: false, left: false, space: false, up: false };
 let platforms = [];
 let hiddenBlocks = [];
 let invisibleFloors = [];
-let fragileFloors = []; // 新たな絶望：崩れる床
+let fragileFloors = []; 
 let trampolines = [];
 let spikes = [];
 let fallingTraps = [];
@@ -31,28 +31,28 @@ let movingSpikes = [];
 let portals = [];
 
 function initLevel() {
-    // 1. 足場（間隔がより広く、シビアに）
+    // 1. 足場（トランポリン後の足場を x:1250 から x:1180 に寄せて確実に届くように修正）
     platforms = [
         { x: 0, y: 370, width: 200, height: 30, color: '#444' },     
         { x: 420, y: 370, width: 380, height: 30, color: '#444' },   
-        { x: 950, y: 370, width: 100, height: 30, color: '#444' },   // トランポリン前の狭い足場
-        { x: 1250, y: 370, width: 150, height: 30, color: '#444' },  
-        { x: 1600, y: 370, width: 120, height: 30, color: '#444' },  // 崖の手前
-        { x: 2000, y: 370, width: 100, height: 30, color: '#444' }   // 偽ゴール用
+        { x: 950, y: 370, width: 100, height: 30, color: '#444' },   
+        { x: 1180, y: 370, width: 220, height: 30, color: '#444' },  // ←修正箇所
+        { x: 1600, y: 370, width: 120, height: 30, color: '#444' },  
+        { x: 2000, y: 370, width: 100, height: 30, color: '#444' }   
     ];
 
-    // 2. 崩れる床（普通の床と同じ見た目だが、乗ると落ちる）
+    // 2. 崩れる床
     fragileFloors = [
         { x: 1400, y: 370, width: 200, height: 30, color: '#444', falling: false }
     ];
 
-    // 3. 見えないブロック（極小化＆2段構え）
+    // 3. 見えないブロック（2段構え）
     hiddenBlocks = [
         { x: 220, y: 280, width: 30, height: 20, visible: false },
         { x: 330, y: 190, width: 30, height: 20, visible: false }, 
     ];
 
-    // 4. 透明な床（真のゴール用。的が小さくなりました）
+    // 4. 透明な床（真のゴール用）
     invisibleFloors = [
         { x: 1680, y: 500, width: 80, height: 20 }
     ];
@@ -62,24 +62,24 @@ function initLevel() {
         { x: 1050, y: 370, width: 40, height: 30, color: '#00FF00' }
     ];
 
-    // 6. トゲ（トランポリン上の隙間を 80px → 40px に。プレイヤー幅は24px）
+    // 6. トゲ（トランポリン右側の天井トゲを大幅に短縮し、確実に越えられるように修正）
     spikes = [
         { x: 450, y: 340, width: 30, height: 30, type: 'up' }, 
         { x: 650, y: 340, width: 30, height: 30, type: 'up' }, 
         { x: 920, y: 120, width: 130, height: 30, type: 'fall' }, 
-        // --- x: 1050 ~ 1090 の 40px だけが安全地帯 ---
-        { x: 1090, y: 120, width: 130, height: 30, type: 'fall' },
+        // --- x: 1050 ~ 1090 の 40px がトランポリンの抜け穴 ---
+        { x: 1090, y: 120, width: 40, height: 30, type: 'fall' }, // ←修正箇所
         // 崖っぷちの牽制
         { x: 1720, y: 340, width: 20, height: 30, type: 'up' }
     ];
 
-    // 7. 圧殺ブロック（2連撃。タイミングと速度が違います）
+    // 7. 圧殺ブロック（2連撃）
     fallingTraps = [
         { x: 500, y: -400, startY: -400, width: 60, height: 400, triggerX: 420, active: false, returning: false, speed: 20, returnSpeed: 1.5 },
         { x: 700, y: -400, startY: -400, width: 100, height: 400, triggerX: 580, active: false, returning: false, speed: 28, returnSpeed: 0.8 } 
     ];
 
-    // 8. 高速突進トゲ（前後からの挟み撃ち）
+    // 8. 高速突進トゲ
     movingSpikes = [
         { x: 2100, y: 340, width: 30, height: 30, dx: 0, dy: 0, triggerX: 1450, type: 'dash', speed: -12 },
         { x: 1250, y: 340, width: 30, height: 30, dx: 0, dy: 0, triggerX: 1600, type: 'dash', speed: 14 } 
@@ -88,7 +88,7 @@ function initLevel() {
     // 9. ポータル
     portals = [
         { x: 2050, y: 320, radius: 40, isFake: true }, 
-        { x: 1720, y: 460, radius: 20, isFake: false } // 真のゴールも極小サイズに
+        { x: 1720, y: 460, radius: 20, isFake: false }
     ];
 }
 
@@ -98,7 +98,7 @@ function initGame() {
     gameOver = false; gameClear = false; gameStarted = false;
     initLevel();
     messageDisplay.style.display = 'block';
-    messageDisplay.innerText = "【限界突破版】\n心が折れる音が聞きたい";
+    messageDisplay.innerText = "【完全修正版】\n今度こそ道は開かれている";
     messageDisplay.style.color = '#FF0044';
     restartBtn.style.display = 'none';
 }
@@ -144,13 +144,10 @@ function update() {
     // 崩れる床判定
     fragileFloors.forEach(f => {
         handlePlatformCollision(player, f);
-        // プレイヤーが乗った瞬間、落下フラグON
         if (!f.falling && player.y + player.height <= f.y + 2 && player.y + player.height >= f.y - 2 && player.x + player.width > f.x && player.x < f.x + f.width) {
             f.falling = true;
         }
-        if (f.falling) {
-            f.y += 8; // 猛スピードで落ちる
-        }
+        if (f.falling) f.y += 8; 
     });
 
     // トランポリン判定
@@ -163,7 +160,6 @@ function update() {
     });
 
     if (gameStarted) {
-        // 隠しブロック判定
         hiddenBlocks.forEach(b => {
             if (!b.visible && checkCollision(player, b) && player.dy < 0) {
                 b.visible = true;
@@ -172,39 +168,28 @@ function update() {
             }
         });
 
-        // 圧殺ブロック判定
         fallingTraps.forEach(t => {
-            if (player.x > t.triggerX && !t.active && !t.returning) {
-                t.active = true;
-            }
+            if (player.x > t.triggerX && !t.active && !t.returning) t.active = true;
             if (t.active) {
                 t.y += t.speed;
                 if (t.y >= 370 - t.height) { 
-                    t.y = 370 - t.height;
-                    t.active = false;
-                    t.returning = true; 
+                    t.y = 370 - t.height; t.active = false; t.returning = true; 
                 }
             } else if (t.returning) {
                 t.y -= t.returnSpeed; 
-                if (t.y <= t.startY) {
-                    t.y = t.startY;
-                    t.returning = false; 
-                }
+                if (t.y <= t.startY) { t.y = t.startY; t.returning = false; }
             }
             if (checkCollision(player, t)) endGame("GAMEOVER! ぺしゃんこ！");
         });
 
-        // 動くトゲ判定
         movingSpikes.forEach(s => {
             if (player.x > s.triggerX) s.dx = s.speed;
             s.x += s.dx;
             if (checkCollision(player, s)) endGame("GAMEOVER! 挟み撃ち！");
         });
 
-        // 固定トゲ判定
         spikes.forEach(s => { if (checkCollision(player, s)) endGame("GAMEOVER! 串刺し！"); });
 
-        // ゴール判定
         portals.forEach(p => {
             let portalBox = { x: p.x - p.radius + 5, y: p.y - p.radius + 5, width: p.radius*2 - 10, height: p.radius*2 - 10 };
             if (checkCollision(player, portalBox)) {
@@ -244,16 +229,13 @@ function draw() {
     ctx.fillStyle = '#050505'; ctx.fillRect(0, 0, canvas.width, canvas.height); 
     
     platforms.forEach(p => { ctx.fillStyle = p.color; ctx.fillRect(p.x - cameraX, p.y, p.width, p.height); });
-    
     fragileFloors.forEach(f => { ctx.fillStyle = f.color; ctx.fillRect(f.x - cameraX, f.y, f.width, f.height); });
 
     hiddenBlocks.forEach(b => { 
         if (b.visible) { ctx.fillStyle = '#666'; ctx.fillRect(b.x - cameraX, b.y, b.width, b.height); } 
     });
 
-    trampolines.forEach(t => { 
-        ctx.fillStyle = t.color; ctx.fillRect(t.x - cameraX, t.y, t.width, t.height); 
-    });
+    trampolines.forEach(t => { ctx.fillStyle = t.color; ctx.fillRect(t.x - cameraX, t.y, t.width, t.height); });
 
     fallingTraps.forEach(t => { 
         ctx.fillStyle = '#333'; ctx.fillRect(t.x - cameraX, t.y, t.width, t.height); 
@@ -281,7 +263,6 @@ function draw() {
         ctx.fill();
     });
 
-    // プレイヤー
     ctx.fillStyle = gameOver ? '#555' : '#00FFFF';
     ctx.fillRect(player.x - cameraX, player.y, player.width, player.height);
     ctx.fillStyle = 'black';
@@ -289,7 +270,6 @@ function draw() {
     let face = gameOver ? "x_x" : (player.state === 'jumping' ? ">_<" : (player.state === 'falling' ? "^_^" : "o_o"));
     ctx.fillText(face, player.x - cameraX + 1, player.y + 16);
 
-    // デスカウンター
     ctx.fillStyle = '#FFF';
     ctx.font = "bold 16px sans-serif";
     ctx.fillText("DEATHS: " + deathCount, 20, 30);
