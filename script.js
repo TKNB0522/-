@@ -87,7 +87,7 @@ function initGame() {
     gameOver = false; gameClear = false; gameStarted = false;
     initLevel();
     messageDisplay.style.display = 'block';
-    messageDisplay.innerText = "【完全保証版】\n己の指と記憶を信じよ";
+    messageDisplay.innerText = "己の指と記憶を信じよ";
     messageDisplay.style.color = '#FF0044';
     restartBtn.style.display = 'none';
 }
