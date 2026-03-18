@@ -6,7 +6,7 @@ const restartBtn = document.getElementById('restartBtn');
 const WORLD_WIDTH = 3200; 
 let cameraX = 0; 
 let frameCount = 0;
-let deathCount = 0; // デスカウンター（リスタートしてもリセットされません）
+let deathCount = 0; 
 
 let player = {
     x: 30, y: 340, width: 24, height: 24, 
@@ -23,6 +23,7 @@ let keys = { right: false, left: false, space: false, up: false };
 let platforms = [];
 let hiddenBlocks = [];
 let invisibleFloors = [];
+let fragileFloors = []; // 新たな絶望：崩れる床
 let trampolines = [];
 let spikes = [];
 let fallingTraps = [];
@@ -30,54 +31,64 @@ let movingSpikes = [];
 let portals = [];
 
 function initLevel() {
-    // 1. 足場（絶対に届く距離に計算し直しました）
+    // 1. 足場（間隔がより広く、シビアに）
     platforms = [
-        { x: 0, y: 370, width: 250, height: 30, color: '#444' },     // スタート地点
-        { x: 400, y: 370, width: 450, height: 30, color: '#444' },   // 第1の隙間の先
-        { x: 950, y: 370, width: 400, height: 30, color: '#444' },   // トランポリンエリア
-        { x: 1450, y: 370, width: 350, height: 30, color: '#444' },  // 飛び降りるための崖
-        { x: 2000, y: 370, width: 100, height: 30, color: '#444' }   // 偽ゴール用の浮島
+        { x: 0, y: 370, width: 200, height: 30, color: '#444' },     
+        { x: 420, y: 370, width: 380, height: 30, color: '#444' },   
+        { x: 950, y: 370, width: 100, height: 30, color: '#444' },   // トランポリン前の狭い足場
+        { x: 1250, y: 370, width: 150, height: 30, color: '#444' },  
+        { x: 1600, y: 370, width: 120, height: 30, color: '#444' },  // 崖の手前
+        { x: 2000, y: 370, width: 100, height: 30, color: '#444' }   // 偽ゴール用
     ];
 
-    // 2. 見えないブロック（第1の隙間を確実に越えるための足場）
+    // 2. 崩れる床（普通の床と同じ見た目だが、乗ると落ちる）
+    fragileFloors = [
+        { x: 1400, y: 370, width: 200, height: 30, color: '#444', falling: false }
+    ];
+
+    // 3. 見えないブロック（極小化＆2段構え）
     hiddenBlocks = [
-        { x: 200, y: 280, width: 50, height: 20, visible: false },
+        { x: 220, y: 280, width: 30, height: 20, visible: false },
+        { x: 330, y: 190, width: 30, height: 20, visible: false }, 
     ];
 
-    // 3. 透明な床（崖の下。幅を400pxに拡大し、絶対に飛び乗れるようにしました）
+    // 4. 透明な床（真のゴール用。的が小さくなりました）
     invisibleFloors = [
-        { x: 1750, y: 480, width: 400, height: 20 }
+        { x: 1680, y: 500, width: 80, height: 20 }
     ];
 
-    // 4. トランポリン
+    // 5. トランポリン
     trampolines = [
-        { x: 1100, y: 370, width: 40, height: 30, color: '#00FF00' }
+        { x: 1050, y: 370, width: 40, height: 30, color: '#00FF00' }
     ];
 
-    // 5. トゲ（トランポリン上の隙間を、プレイヤー幅24pxに対して80px確保）
+    // 6. トゲ（トランポリン上の隙間を 80px → 40px に。プレイヤー幅は24px）
     spikes = [
-        { x: 500, y: 340, width: 30, height: 30, type: 'up' }, // 罠前の牽制
-        { x: 1000, y: 120, width: 40, height: 30, type: 'fall' }, 
-        { x: 1040, y: 120, width: 40, height: 30, type: 'fall' },
-        // --- x: 1080 ~ 1160 は安全地帯（広めに確保！） ---
-        { x: 1160, y: 120, width: 40, height: 30, type: 'fall' },
-        { x: 1200, y: 120, width: 40, height: 30, type: 'fall' },
+        { x: 450, y: 340, width: 30, height: 30, type: 'up' }, 
+        { x: 650, y: 340, width: 30, height: 30, type: 'up' }, 
+        { x: 920, y: 120, width: 130, height: 30, type: 'fall' }, 
+        // --- x: 1050 ~ 1090 の 40px だけが安全地帯 ---
+        { x: 1090, y: 120, width: 130, height: 30, type: 'fall' },
+        // 崖っぷちの牽制
+        { x: 1720, y: 340, width: 20, height: 30, type: 'up' }
     ];
 
-    // 6. 圧殺ブロック（ゆっくり上がり、確実に下を通れるように修正）
+    // 7. 圧殺ブロック（2連撃。タイミングと速度が違います）
     fallingTraps = [
-        { x: 700, y: -400, startY: -400, width: 80, height: 400, triggerX: 600, active: false, returning: false, speed: 15, returnSpeed: 2 }
+        { x: 500, y: -400, startY: -400, width: 60, height: 400, triggerX: 420, active: false, returning: false, speed: 20, returnSpeed: 1.5 },
+        { x: 700, y: -400, startY: -400, width: 100, height: 400, triggerX: 580, active: false, returning: false, speed: 28, returnSpeed: 0.8 } 
     ];
 
-    // 7. 高速突進トゲ（崖に近づくと偽ゴールの方から飛んでくる）
+    // 8. 高速突進トゲ（前後からの挟み撃ち）
     movingSpikes = [
-        { x: 2100, y: 340, width: 30, height: 30, dx: 0, dy: 0, triggerX: 1700, type: 'dash', speed: -10 }
+        { x: 2100, y: 340, width: 30, height: 30, dx: 0, dy: 0, triggerX: 1450, type: 'dash', speed: -12 },
+        { x: 1250, y: 340, width: 30, height: 30, dx: 0, dy: 0, triggerX: 1600, type: 'dash', speed: 14 } 
     ];
 
-    // 8. ポータル
+    // 9. ポータル
     portals = [
-        { x: 2050, y: 320, radius: 40, isFake: true }, // 浮島の偽ゴール
-        { x: 1950, y: 440, radius: 40, isFake: false } // 奈落の真のゴール
+        { x: 2050, y: 320, radius: 40, isFake: true }, 
+        { x: 1720, y: 460, radius: 20, isFake: false } // 真のゴールも極小サイズに
     ];
 }
 
@@ -87,7 +98,7 @@ function initGame() {
     gameOver = false; gameClear = false; gameStarted = false;
     initLevel();
     messageDisplay.style.display = 'block';
-    messageDisplay.innerText = "己の指と記憶を信じよ";
+    messageDisplay.innerText = "【限界突破版】\n心が折れる音が聞きたい";
     messageDisplay.style.color = '#FF0044';
     restartBtn.style.display = 'none';
 }
@@ -123,15 +134,29 @@ function update() {
 
     player.onGround = false;
     
+    // 足場判定
     let activePlatforms = platforms
         .concat(hiddenBlocks.filter(b => b.visible))
         .concat(invisibleFloors);
         
     activePlatforms.forEach(p => handlePlatformCollision(player, p));
 
+    // 崩れる床判定
+    fragileFloors.forEach(f => {
+        handlePlatformCollision(player, f);
+        // プレイヤーが乗った瞬間、落下フラグON
+        if (!f.falling && player.y + player.height <= f.y + 2 && player.y + player.height >= f.y - 2 && player.x + player.width > f.x && player.x < f.x + f.width) {
+            f.falling = true;
+        }
+        if (f.falling) {
+            f.y += 8; // 猛スピードで落ちる
+        }
+    });
+
+    // トランポリン判定
     trampolines.forEach(t => {
         if (handlePlatformCollision(player, t) && player.dy === 0) {
-            player.dy = -15; // 大ジャンプ
+            player.dy = -15; 
             player.isJumping = true;
             player.onGround = false;
         }
@@ -147,47 +172,47 @@ function update() {
             }
         });
 
-        // 圧殺ブロック判定（完璧に抜けられる仕様）
+        // 圧殺ブロック判定
         fallingTraps.forEach(t => {
             if (player.x > t.triggerX && !t.active && !t.returning) {
                 t.active = true;
             }
             if (t.active) {
                 t.y += t.speed;
-                if (t.y >= 370 - t.height) { // 地面に激突
+                if (t.y >= 370 - t.height) { 
                     t.y = 370 - t.height;
                     t.active = false;
                     t.returning = true; 
                 }
             } else if (t.returning) {
-                t.y -= t.returnSpeed; // ゆっくり上昇
+                t.y -= t.returnSpeed; 
                 if (t.y <= t.startY) {
                     t.y = t.startY;
-                    t.returning = false; // 元の位置で再セット
+                    t.returning = false; 
                 }
             }
             if (checkCollision(player, t)) endGame("GAMEOVER! ぺしゃんこ！");
         });
 
-        // 動くトゲ
+        // 動くトゲ判定
         movingSpikes.forEach(s => {
             if (player.x > s.triggerX) s.dx = s.speed;
             s.x += s.dx;
-            if (checkCollision(player, s)) endGame("GAMEOVER! 油断大敵！");
+            if (checkCollision(player, s)) endGame("GAMEOVER! 挟み撃ち！");
         });
 
-        // 固定トゲ
+        // 固定トゲ判定
         spikes.forEach(s => { if (checkCollision(player, s)) endGame("GAMEOVER! 串刺し！"); });
 
         // ゴール判定
         portals.forEach(p => {
-            let portalBox = { x: p.x - p.radius + 10, y: p.y - p.radius + 10, width: p.radius*2 - 20, height: p.radius*2 - 20 };
+            let portalBox = { x: p.x - p.radius + 5, y: p.y - p.radius + 5, width: p.radius*2 - 10, height: p.radius*2 - 10 };
             if (checkCollision(player, portalBox)) {
                 if (p.isFake) {
-                    endGame("GAMEOVER! そのゴールは幻だ！");
+                    endGame("GAMEOVER! 騙されたな！");
                 } else {
                     gameClear = true;
-                    messageDisplay.innerText = `YOU ARE A GOD!\n完全制覇！\n犠牲になった回数: ${deathCount}回`;
+                    messageDisplay.innerText = `YOU ARE A GOD!\n神々の領域へようこそ！\n犠牲になった回数: ${deathCount}回`;
                     messageDisplay.style.display = 'block';
                     messageDisplay.style.color = '#00FF00';
                     restartBtn.style.display = 'block';
@@ -196,7 +221,6 @@ function update() {
         });
     }
 
-    // 奈落判定
     if (player.y > 550) endGame("GAMEOVER! 奈落の底へ…");
 }
 
@@ -221,6 +245,8 @@ function draw() {
     
     platforms.forEach(p => { ctx.fillStyle = p.color; ctx.fillRect(p.x - cameraX, p.y, p.width, p.height); });
     
+    fragileFloors.forEach(f => { ctx.fillStyle = f.color; ctx.fillRect(f.x - cameraX, f.y, f.width, f.height); });
+
     hiddenBlocks.forEach(b => { 
         if (b.visible) { ctx.fillStyle = '#666'; ctx.fillRect(b.x - cameraX, b.y, b.width, b.height); } 
     });
@@ -246,7 +272,7 @@ function draw() {
     });
     
     portals.forEach(p => {
-        let pulse = Math.sin(frameCount * 0.1) * 5;
+        let pulse = Math.sin(frameCount * 0.1) * (p.isFake ? 5 : 2);
         ctx.beginPath(); ctx.arc(p.x - cameraX, p.y, p.radius + pulse, 0, Math.PI * 2);
         ctx.fillStyle = p.isFake ? 'rgba(255, 0, 0, 0.4)' : 'rgba(0, 255, 255, 0.4)'; 
         ctx.fill();
@@ -255,7 +281,7 @@ function draw() {
         ctx.fill();
     });
 
-    // プレイヤー描画
+    // プレイヤー
     ctx.fillStyle = gameOver ? '#555' : '#00FFFF';
     ctx.fillRect(player.x - cameraX, player.y, player.width, player.height);
     ctx.fillStyle = 'black';
@@ -263,7 +289,7 @@ function draw() {
     let face = gameOver ? "x_x" : (player.state === 'jumping' ? ">_<" : (player.state === 'falling' ? "^_^" : "o_o"));
     ctx.fillText(face, player.x - cameraX + 1, player.y + 16);
 
-    // デスカウンター描画（画面左上）
+    // デスカウンター
     ctx.fillStyle = '#FFF';
     ctx.font = "bold 16px sans-serif";
     ctx.fillText("DEATHS: " + deathCount, 20, 30);
@@ -277,7 +303,7 @@ function endGame(msg) {
     if(gameOver) return;
     gameOver = true; 
     player.state = 'dead';
-    deathCount++; // 死亡時にカウントアップ
+    deathCount++; 
     messageDisplay.innerText = msg;
     messageDisplay.style.display = 'block';
     messageDisplay.style.color = '#FF0044';
